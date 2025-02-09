@@ -29,14 +29,10 @@ A Gmail account with App Password enabled (if 2-Step Verification is turned on).
 Setup
 Clone the Repository (if applicable):
 
-bash
-Copy
-git clone https://github.com/yourusername/email-sender-script.git
+git clone https://github.com/Christopher-Siatwiinda/send_email.git
 cd email-sender-script
 Make the Script Executable:
 
-bash
-Copy
 chmod +x send_email.py
 Install Required Libraries:
 
@@ -46,8 +42,6 @@ Usage
 Send to One Recipient
 Run the script without any flags:
 
-bash
-Copy
 ./send_email.py
 Follow the prompts to enter:
 
@@ -66,8 +60,6 @@ The email message (type END on a new line to finish).
 Send to Multiple Recipients
 Use the -m or --multiple flag:
 
-bash
-Copy
 ./send_email.py --multiple
 Follow the prompts to enter:
 
@@ -85,8 +77,6 @@ The email message (type END on a new line to finish).
 
 Example
 Input:
-bash
-Copy
 ./send_email.py --multiple
 Enter your Gmail address: your_email@gmail.com
 Enter your Gmail app password: **\*\*\*\***
