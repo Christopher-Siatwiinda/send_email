@@ -8,6 +8,7 @@ import time
 import subprocess
 import sys
 
+#attempting the auto updates
 # GitHub Repository URL
 GITHUB_REPO_URL = "https://github.com/Christopher-Siatwiinda/send_email.git"
 
