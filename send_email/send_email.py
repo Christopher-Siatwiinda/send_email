@@ -1,70 +1,39 @@
 #!/usr/bin/env python3
 
 import smtplib
-from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
 from getpass import getpass
-import time
+import json
+import os
 import subprocess
-import sys
 
-#attempting the auto updates
-# GitHub Repository URL
-GITHUB_REPO_URL = "https://github.com/Christopher-Siatwiinda/send_email.git"
+TEMPLATES_FILE = "email_templates.json"
 
-def update_script():
-    """Pull the latest version of this script from GitHub."""
-    print("\nUpdating the script from GitHub...")
-    try:
-        # Check if git is installed
-        subprocess.run(["git", "--version"], check=True)
-        
-        # Pull the latest changes
-        subprocess.run(["git", "pull", GITHUB_REPO_URL], check=True)
-        
-        print("\nScript updated successfully! Please restart the script.")
-        sys.exit(0)
-        
-    except subprocess.CalledProcessError:
-        print("Error: Failed to update the script. Make sure Git is installed.")
-        sys.exit(1)
+def load_templates():
+    """Load email templates from JSON file."""
+    if not os.path.exists(TEMPLATES_FILE):
+        print("No templates found.")
+        return {}
+    
+    with open(TEMPLATES_FILE, "r") as file:
+        return json.load(file)
 
-def send_email(sender_email, sender_password, from_name, to_emails, subject, message):
-    try:
-        # Create the email
-        msg = MIMEMultipart("alternative")
-        msg["From"] = f"{from_name} <{sender_email}>"
-        msg["To"] = ", ".join(to_emails)
-        msg["Subject"] = subject
-        msg["Reply-To"] = sender_email
-        msg["Return-Path"] = sender_email
+def display_templates(templates):
+    """Display available templates."""
+    print("\nAvailable Templates:")
+    for i, (title, content) in enumerate(templates.items(), start=1):
+        print(f"{i}. {title}")
+    print("")
 
-        # Preserve paragraphs by maintaining line breaks
-        plain_text = message
-        
-        # Convert message to HTML by preserving line breaks and paragraphs
-        html_message = "<br>".join(
-            [f"<p>{para}</p>" for para in message.split("\n") if para]
-        )
-
-        text_part = MIMEText(plain_text, "plain")
-        html_part = MIMEText(f"<html><body>{html_message}</body></html>", "html")
-
-        msg.attach(text_part)
-        msg.attach(html_part)
-
-        # Send the email
-        print("Wait, sending your email...")
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
-            server.starttls()
-            server.login(sender_email, sender_password)
-            for email in to_emails:
-                server.sendmail(sender_email, email, msg.as_string())
-                print(f"Email sent to {email} successfully!")
-                time.sleep(1)  # Pause to reduce spam detection
-
-    except Exception as e:
-        print(f"Failed to send email: {e}")
+def select_template(templates):
+    """Let the user select a template."""
+    display_templates(templates)
+    choice = int(input("Select a template by number: "))
+    template_title = list(templates.keys())[choice - 1]
+    return templates[template_title]
 
 def get_multiline_input(prompt):
     """Get multi-line input from the user."""
@@ -77,56 +46,137 @@ def get_multiline_input(prompt):
         lines.append(line)
     return "\n".join(lines)
 
-if __name__ == "__main__":
-    # Welcome message
-    print("\nWelcome! Select one option below:")
+def add_attachments(msg):
+    """Add attachments to the email."""
+    attachments = []
+    
+    # Ask if the user wants to add attachments
+    add_attach = input("Do you want to add attachments? (y/N): ").strip().lower()
+    if add_attach == "y":
+        while True:
+            file_path = input("Enter the file path to attach (or type 'END' to finish): ").strip()
+            if file_path.lower() == "end":
+                break
+            if not os.path.exists(file_path):
+                print("File not found. Try again.")
+                continue
+            
+            attachments.append(file_path)
+
+            # Add file to email
+            with open(file_path, "rb") as attachment:
+                part = MIMEBase("application", "octet-stream")
+                part.set_payload(attachment.read())
+                encoders.encode_base64(part)
+                part.add_header(
+                    "Content-Disposition",
+                    f"attachment; filename= {os.path.basename(file_path)}",
+                )
+                msg.attach(part)
+    
+    return msg
+
+def send_email(sender_email, sender_password, from_name, to_emails, subject, message):
+    try:
+        # Create the email
+        msg = MIMEMultipart()
+        msg["From"] = f"{from_name} <{sender_email}>"
+        msg["To"] = ", ".join(to_emails)
+        msg["Subject"] = subject
+        msg.attach(MIMEText(message, "plain"))
+
+        # Add attachments if chosen
+        msg = add_attachments(msg)
+
+        # Send the email
+        print("Wait, sending your email...")
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, to_emails, msg.as_string())
+
+        print("Email sent successfully!")
+
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+
+def update_script():
+    """Update the script from GitHub."""
+    print("\nUpdating the script from GitHub...")
+    try:
+        result = subprocess.run(["git", "--version"], capture_output=True, text=True)
+        print(result.stdout)
+
+        result = subprocess.run(["git", "pull"], capture_output=True, text=True)
+        if result.returncode != 0:
+            print("Error:", result.stderr)
+        else:
+            print("Script updated successfully!")
+
+    except FileNotFoundError:
+        print("Error: Git is not installed. Install Git to use this feature.")
+
+def main_menu():
+    """Display the main menu."""
+    print("\nWelcome to the Email Sender!")
+    print("Select one option below:")
     print("1. Send a message")
     print("2. Update the script")
+    choice = input("Enter your choice: ").strip()
 
-    main_choice = input("Enter your choice (1 or 2): ").strip()
+    if choice == "1":
+        # Choose recipient type
+        print("\nSelect the recipient type:")
+        print("1. Send to one email address")
+        print("2. Send to multiple email addresses")
+        recipient_choice = input("Enter your choice: ").strip()
 
-    # Validate choice
-    if main_choice not in ["1", "2"]:
-        print("Invalid choice. Please run the script again and select 1 or 2.")
-        sys.exit(1)
+        multiple = recipient_choice == "2"
 
-    # If choice is 2, update the script
-    if main_choice == "2":
+        # Get sender details
+        sender_email = input("Enter your Gmail address: ").strip()
+        sender_password = getpass("Enter your Gmail app password: ")
+        from_name = input("Enter the 'From Name' the recipient will see: ").strip()
+
+        # Get recipient(s)
+        if multiple:
+            print("Enter recipient email addresses (one per line). Type 'END' when done:")
+            to_emails = []
+            while True:
+                email = input().strip()
+                if email.lower() == "end":
+                    break
+                to_emails.append(email)
+        else:
+            to_emails = [input("Enter recipient email address: ").strip()]
+
+        # Choose message type
+        print("\nSelect the message type:")
+        print("1. Use a template")
+        print("2. Enter custom message")
+        message_choice = input("Enter your choice: ").strip()
+
+        # Get message
+        if message_choice == "1":
+            templates = load_templates()
+            if templates:
+                message = select_template(templates)
+            else:
+                print("No templates found. Using custom message instead.")
+                message = get_multiline_input("Enter the email message (type 'END' on a new line when done):")
+        else:
+            message = get_multiline_input("Enter the email message (type 'END' on a new line when done):")
+
+        # Get subject
+        subject = input("Enter the email subject: ").strip()
+
+        # Send the email
+        send_email(sender_email, sender_password, from_name, to_emails, subject, message)
+
+    elif choice == "2":
         update_script()
-
-    # If choice is 1, proceed to sending a message
-    print("\nSelect one option below:")
-    print("1. Send to one email address")
-    print("2. Send to multiple email addresses")
-    
-    choice = input("Enter your choice (1 or 2): ").strip()
-    
-    # Validate choice
-    if choice not in ["1", "2"]:
-        print("Invalid choice. Please run the script again and select 1 or 2.")
-        sys.exit(1)
-    
-    # Get sender details
-    sender_email = input("Enter your Gmail address: ").strip()
-    sender_password = getpass("Enter your Gmail app password: ")
-    from_name = input("Enter the 'From Name' the recipient will see: ").strip()
-
-    # Get recipient(s)
-    if choice == "2":
-        print("Enter recipient email addresses (one per line). Type 'END' when done:")
-        to_emails = []
-        while True:
-            email = input().strip()
-            if email.lower() == "end":
-                break
-            to_emails.append(email)
     else:
-        to_emails = [input("Enter recipient email address: ").strip()]
+        print("Invalid choice. Exiting.")
 
-    # Get subject and message
-    subject = input("Enter the email subject: ").strip()
-    print("Enter the email message (type 'END' on a new line when done):")
-    message = get_multiline_input("")
-
-    # Send the email
-    send_email(sender_email, sender_password, from_name, to_emails, subject, message)
+if __name__ == "__main__":
+    main_menu()
